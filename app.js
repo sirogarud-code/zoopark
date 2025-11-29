@@ -1,4 +1,3 @@
-
 /* =========================
    ZooFeed — app.js (магазин)
    ========================= */
@@ -14,7 +13,7 @@ const LS_USERS     = "zf_users";     // список усіх користува
 const LS_LANG      = "zf_lang";
 const LS_REVIEWS   = "zf_reviews";
 const LS_PCOMMENTS = "zf_pcomments"; // коментарі до товарів
-const LS_ORDERS   = "zf_orders";     // список оформлених замовлень
+const LS_ORDERS    = "zf_orders";    // список оформлених замовлень
 
 // ---------- Налаштування контактів / соцмереж (footer) ----------
 
@@ -789,9 +788,33 @@ function saveLS() {
   localStorage.setItem(LS_REVIEWS, JSON.stringify(userReviews));
   localStorage.setItem(LS_PCOMMENTS, JSON.stringify(productComments));
 }
+
+// генерація унікального ID користувача (одна, без дублювання)
 function generateUserId() {
-  // простий унікальний id для демо
-  return "u_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  const part = () => Math.random().toString(16).slice(2, 6).toUpperCase();
+  return `ZOO-${part()}-${part()}`;
+}
+
+/* ---------- допоміжне форматування дати для коментарів ---------- */
+
+function formatCommentDate(ts) {
+  if (!ts) return "";
+  const localeMap = {
+    uk: "uk-UA",
+    ru: "ru-RU",
+    en: "en-US"
+  };
+  const locale = localeMap[currentLang] || "uk-UA";
+  try {
+    const d = new Date(ts);
+    return d.toLocaleDateString(locale, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+  } catch {
+    return "";
+  }
 }
 
 /* ---------- каталог ---------- */
@@ -913,10 +936,10 @@ function renderGrid() {
         </div>
         <div class="card-actions">
           <div class="card-icon-row">
-            <button class="card-icon js-fav ${inFav ? "active" : ""}" title="Обране">❤️</button>
-            <button class="card-icon js-cmp ${inCmp ? "active" : ""}" title="Порівняти">⚖️</button>
+            <button class="card-icon js-fav ${inFav ? "active" : ""}" title="Обране" aria-label="Додати до обраного">❤️</button>
+            <button class="card-icon js-cmp ${inCmp ? "active" : ""}" title="Порівняти" aria-label="Додати до порівняння">⚖️</button>
           </div>
-          <button class="btn primary card-btn js-add" type="button">У кошик</button>
+          <button class="btn primary card-btn js-add" type="button" aria-label="Додати в кошик">У кошик</button>
         </div>
       </article>
     `;
@@ -1083,7 +1106,7 @@ function renderFav() {
         </div>
         <div class="fav-actions">
           <button type="button" class="btn-sm js-fav-add">У кошик</button>
-          <button type="button" class="btn-icon js-fav-remove" title="Прибрати">✕</button>
+          <button type="button" class="btn-icon js-fav-remove" title="Прибрати" aria-label="Прибрати з обраного">✕</button>
         </div>
       </div>
     `;
@@ -1145,7 +1168,7 @@ function renderCmp() {
         </div>
         <div class="fav-actions">
           <button type="button" class="btn-sm js-cmp-add">У кошик</button>
-          <button type="button" class="btn-icon js-cmp-remove" title="Прибрати">✕</button>
+          <button type="button" class="btn-icon js-cmp-remove" title="Прибрати" aria-label="Прибрати з порівняння">✕</button>
         </div>
       </div>
     `;
@@ -1193,15 +1216,21 @@ function renderCart() {
           <div class="cart-item-meta">${moneyUAH(item.price)}</div>
         </div>
         <div class="cart-item-qty">
-          <button type="button" class="js-dec">−</button>
+          <button type="button" class="js-dec" aria-label="Зменшити кількість">−</button>
           <span>${item.qty}</span>
-          <button type="button" class="js-inc">+</button>
+          <button type="button" class="js-inc" aria-label="Збільшити кількість">+</button>
         </div>
       </div>
     `;
   }).join("");
   const tot = $("#cartTotal");
   if (tot) tot.textContent = moneyUAH(total);
+
+  // демо-пояснення
+  const demoNoteEl = $("#cartDemoNote");
+  if (demoNoteEl) {
+    demoNoteEl.textContent = "У демо-версії дані не надсилаються на сервер, замовлення зберігаються тільки у вашому браузері.";
+  }
 }
 
 function changeQty(id, delta) {
@@ -1250,12 +1279,6 @@ function hashPassword(pwd) {
   return btoa(pwd); // не безпечно, але для навчального проєкту ок
 }
 
-// генерація унікального ID користувача
-function generateUserId() {
-  const part = () => Math.random().toString(16).slice(2, 6).toUpperCase();
-  return `ZOO-${part()}-${part()}`;
-}
-
 // поточний користувач береться з змінної currentUser (її ми вже завантажуємо в loadLS())
 function setCurrentUser(user) {
   currentUser = user;
@@ -1285,7 +1308,6 @@ function openAuth() {
   passInput.value = "";
   if (hint) hint.textContent = "";
 
-  // ГОЛОВНЕ: показуємо модалку тільки класом
   modal.classList.add("is-open");
 }
 
@@ -1295,24 +1317,21 @@ function closeAuth() {
   modal.classList.remove("is-open");
 }
 
+function updateAccountTitle() {
+  const btn = document.getElementById("accountBtn");
+  if (!btn) return;
 
-  function updateAccountTitle() {
-    const btn = document.getElementById("accountBtn");
-    if (!btn) return;
-
-    if (currentUser) {
-      const title = currentUser.id
-        ? `${currentUser.email} • ID: ${currentUser.id}`
-        : currentUser.email;
-      btn.setAttribute("title", title);
-      btn.setAttribute("aria-label", "Особистий кабінет");
-    } else {
-      btn.setAttribute("title", "Вхід / Кабінет");
-      btn.setAttribute("aria-label", "Вхід / Кабінет");
-    }
+  if (currentUser) {
+    const title = currentUser.id
+      ? `${currentUser.email} • ID: ${currentUser.id}`
+      : currentUser.email;
+    btn.setAttribute("title", title);
+    btn.setAttribute("aria-label", "Особистий кабінет");
+  } else {
+    btn.setAttribute("title", "Вхід / Кабінет");
+    btn.setAttribute("aria-label", "Вхід / Кабінет");
   }
-
-
+}
 
 /* ---------- nav scroll ---------- */
 const NAV_OFFSET = 80;
@@ -1380,12 +1399,18 @@ function renderProductComments(productId) {
   }
 
   emptyEl.style.display = "none";
-  listEl.innerHTML = items.map(c => `
-    <div class="pm-comment-item">
-      <div class="pm-comment-name">${escapeHtml(c.name || "Анонім")}</div>
-      <div class="pm-comment-text">${escapeHtml(c.text || "")}</div>
-    </div>
-  `).join("");
+  listEl.innerHTML = items.map(c => {
+    const dateStr = formatCommentDate(c.createdAt);
+    return `
+      <div class="pm-comment-item">
+        <div class="pm-comment-name">
+          ${escapeHtml(c.name || "Анонім")}
+          ${dateStr ? `<span style="font-size:11px;color:#9ca3af;margin-left:6px;">${escapeHtml(dateStr)}</span>` : ""}
+        </div>
+        <div class="pm-comment-text">${escapeHtml(c.text || "")}</div>
+      </div>
+    `;
+  }).join("");
 }
 
 function openProductModalById(id) {
@@ -1411,6 +1436,7 @@ function openProductModalById(id) {
     if (p.img) {
       imgEl.src = p.img;
       imgEl.alt = p.title;
+      imgEl.loading = "lazy";
     } else {
       imgEl.src = "";
       imgEl.alt = "";
@@ -1467,22 +1493,22 @@ function closeProductModal() {
 
 document.addEventListener("DOMContentLoaded", () => {
   // товари з data.js
-  // якщо loadProductsFromLS є – викликаємо, якщо ні – не ламаємо скрипт
   if (typeof loadProductsFromLS === "function") {
     loadProductsFromLS();
   }
-// збережені замовлення (тільки для демо)
-function loadOrders() {
-  try {
-    return JSON.parse(localStorage.getItem(LS_ORDERS) || "[]");
-  } catch {
-    return [];
-  }
-}
 
-function saveOrders(orders) {
-  localStorage.setItem(LS_ORDERS, JSON.stringify(orders));
-}
+  // збережені замовлення (тільки для демо)
+  function loadOrders() {
+    try {
+      return JSON.parse(localStorage.getItem(LS_ORDERS) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function saveOrders(orders) {
+    localStorage.setItem(LS_ORDERS, JSON.stringify(orders));
+  }
 
   loadLS();
 
@@ -1682,17 +1708,39 @@ function saveOrders(orders) {
     });
   }
 
-   const cartCheckoutBtn = $("#cartCheckoutBtn");
+  const cartCheckoutBtn = $("#cartCheckoutBtn");
   if (cartCheckoutBtn) {
     cartCheckoutBtn.addEventListener("click", () => {
       if (!cart.length) return;
 
-      // простий "чекаут" через prompt'и (для демо)
+      // простий "чекаут" через prompt'и (для демо) з базовою валідацією
+      const dict = I18N[currentLang] || I18N.uk;
+
       const name = prompt("Введіть, будь ласка, ваше ім’я:", currentUser?.email || "");
-      if (name === null || !name.trim()) return;
+      if (name === null || !name.trim()) {
+        alert("Будь ласка, вкажіть ім’я.");
+        return;
+      }
+
+      const city = prompt("Введіть місто доставки:", "");
+      if (city === null || !city.trim()) {
+        alert("Будь ласка, вкажіть місто.");
+        return;
+      }
 
       const phone = prompt("Введіть номер телефону для зв’язку:", "");
-      if (phone === null || !phone.trim()) return;
+      if (phone === null || !phone.trim()) {
+        alert("Будь ласка, вкажіть номер телефону.");
+        return;
+      }
+
+      // базова перевірка формату телефона
+      const phoneClean = phone.trim();
+      const phonePattern = /^\+?\d[\d\s\-()]{8,}$/;
+      if (!phonePattern.test(phoneClean)) {
+        alert("Схоже, номер телефону вказано у неподібному до реального форматі.\nСпробуйте ще раз, наприклад: +380 67 123 45 67");
+        return;
+      }
 
       const comment = prompt("Коментар до замовлення (адреса, зручний час тощо):", "") || "";
 
@@ -1706,7 +1754,8 @@ function saveOrders(orders) {
         id: orderId,
         createdAt: new Date().toISOString(),
         name: name.trim(),
-        phone: phone.trim(),
+        city: city.trim(),
+        phone: phoneClean,
         comment: comment.trim(),
         items: cart.map(i => ({
           id: i.id,
@@ -1732,43 +1781,49 @@ function saveOrders(orders) {
       alert(
         `Дякуємо, ${name.trim()}!\n\n` +
         `Ваше замовлення №${orderId} оформлено (демо).\n` +
+        `Місто: ${city.trim()}\n` +
         `Сума: ${moneyUAH(total)}.\n\n` +
-        `У реальному магазині менеджер зв’язався б з вами за телефоном ${phone.trim()}.`
+        `У реальному магазині менеджер зв’язався б з вами за телефоном ${phoneClean}.\n\n` +
+        `Нагадуємо: це демо-версія, дані не надсилаються на сервер.`
       );
     });
   }
 
-      // акаунт / авторизація
+  // акаунт / авторизація
   updateAccountTitle(); // оновити підпис на кнопці при завантаженні
 
-  const accountBtn = document.getElementById('accountBtn');
-const authModal = document.getElementById('authModal');
-const authCloseBtns = document.querySelectorAll('[data-auth-close]');
+  const accountBtn = document.getElementById("accountBtn");
+  const authModal = document.getElementById("authModal");
+  const authCloseBtns = document.querySelectorAll("[data-auth-close]");
 
-accountBtn.addEventListener('click', () => {
-  authModal.classList.add('is-open');
-});
+  if (accountBtn && authModal) {
+    accountBtn.addEventListener("click", () => {
+      openAuth();
+    });
 
-authCloseBtns.forEach(btn => {
-  btn.addEventListener('click', () => {
-    authModal.classList.remove('is-open');
-  });
-});
+    authCloseBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        closeAuth();
+      });
+    });
 
-// закриття по кліку по фону
-authModal.addEventListener('click', (e) => {
-  if (e.target === authModal) {
-    authModal.classList.remove('is-open');
+    authModal.addEventListener("click", (e) => {
+      if (e.target === authModal) {
+        closeAuth();
+      }
+    });
   }
-});
 
-
-    const authForm = document.getElementById("authForm");
+  const authForm = document.getElementById("authForm");
   if (authForm) {
     authForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const email = document.getElementById("authEmail").value.trim();
-      const pass  = document.getElementById("authPassword").value.trim();
+      const emailInput = document.getElementById("authEmail");
+      const passInput  = document.getElementById("authPassword");
+      if (!emailInput || !passInput) return;
+
+      const email = emailInput.value.trim();
+      const pass  = passInput.value.trim();
       if (!email || !pass) return;
 
       // якщо вже є користувач з таким email – залишаємо його id
@@ -1791,9 +1846,7 @@ authModal.addEventListener('click', (e) => {
     });
   }
 
-
   // форма відгуку (глобальні)
-
   const reviewForm = $("#reviewForm");
   const reviewFormWrapper = $("#reviewFormWrapper");
   const reviewToggleBtn = $("#reviewToggleBtn");
@@ -1807,11 +1860,19 @@ authModal.addEventListener('click', (e) => {
   if (reviewForm) {
     reviewForm.addEventListener("submit", e => {
       e.preventDefault();
-      const name  = $("#reviewName").value.trim() || "Анонім";
-      const pet   = $("#reviewPet").value.trim();
-      const city  = $("#reviewCity").value.trim();
-      const rating = Number($("#reviewRating").value || 5);
-      const text  = $("#reviewText").value.trim();
+      const nameInput   = $("#reviewName");
+      const petInput    = $("#reviewPet");
+      const cityInput   = $("#reviewCity");
+      const ratingInput = $("#reviewRating");
+      const textInput   = $("#reviewText");
+
+      if (!textInput) return;
+
+      const name  = nameInput ? (nameInput.value.trim() || "Анонім") : "Анонім";
+      const pet   = petInput ? petInput.value.trim() : "";
+      const city  = cityInput ? cityInput.value.trim() : "";
+      const rating = Number(ratingInput && ratingInput.value || 5);
+      const text  = textInput.value.trim();
       if (!text) return;
 
       userReviews.unshift({
@@ -1831,10 +1892,9 @@ authModal.addEventListener('click', (e) => {
       reviewsPage = 1;
       renderReviews();
       reviewForm.reset();
-      const ratingSel = $("#reviewRating");
-      if (ratingSel) ratingSel.value = "5";
+      if (ratingInput) ratingInput.value = "5";
 
-           const dict = I18N[currentLang] || I18N.uk;
+      const dict = I18N[currentLang] || I18N.uk;
       const hint = $("#reviewHint");
       if (hint) {
         const msg = dict.review_hint_text ||
@@ -1863,7 +1923,7 @@ authModal.addEventListener('click', (e) => {
     });
   }
 
-  // форма контактів (демо) — ВАЖЛИВО: id="contactsForm"
+  // форма контактів (демо)
   const contactsForm = $("#contactsForm");
   if (contactsForm) {
     contactsForm.addEventListener("submit", e => {
@@ -2040,11 +2100,12 @@ document.querySelectorAll("[data-payment]").forEach(btn => {
 У реальному магазині тут була б оплата через ${name}. 🙂`);
   });
 });
+
 // ===== LOGOUT =====
-const logoutBtn = document.getElementById('logoutBtn');
+const logoutBtn = document.getElementById("logoutBtn");
 
 if (logoutBtn) {
-  logoutBtn.addEventListener('click', () => {
+  logoutBtn.addEventListener("click", () => {
     // очищаємо поточного користувача
     currentUser = null;
     localStorage.removeItem(LS_USER);
@@ -2054,16 +2115,32 @@ if (logoutBtn) {
     // оновлюємо стан кнопки акаунту
     updateAccountTitle();
 
-    const accountBtn = document.getElementById('accountBtn');
-    if (accountBtn) {
-      accountBtn.classList.remove('active');
+    const accountBtnEl = document.getElementById("accountBtn");
+    if (accountBtnEl) {
+      accountBtnEl.classList.remove("active");
     }
 
     // закриваємо модалку
-    const authModal = document.getElementById('authModal');
-    if (authModal) {
-      authModal.classList.remove('is-open');
+    const authModalEl = document.getElementById("authModal");
+    if (authModalEl) {
+      authModalEl.classList.remove("is-open");
     }
   });
 }
 
+/* ---------- fallback для зображень (якщо не завантажилися) ---------- */
+
+document.addEventListener("error", (event) => {
+  const el = event.target;
+  if (
+    el &&
+    el.tagName === "IMG" &&
+    (el.closest(".card-thumb") || el.closest(".fav-thumb") || el.id === "pmImg")
+  ) {
+    const parent = el.parentNode;
+    if (parent) {
+      parent.removeChild(el);
+      parent.textContent = "🐾";
+    }
+  }
+}, true);
